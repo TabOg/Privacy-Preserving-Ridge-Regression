@@ -152,14 +152,19 @@
   <ItemGroup>
     <ClCompile Include="databasetools.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="plaintextRR.cpp" />
     <ClCompile Include="ridgeregressiontools.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="databasetools.h" />
+    <ClInclude Include="plaintextRR.h" />
     <ClInclude Include="ridgeregressiontools.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="boston_housing.txt" />
+    <Text Include="californiahousingfull.txt" />
+    <Text Include="californiahousingredux.txt" />
+    <Text Include="winequality.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

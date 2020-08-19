@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <typeinfo>
 
 #include "math.h"
 #include "seal/seal.h"
@@ -26,7 +27,7 @@ int ImportData(dMat& Matrix, string filename) {
 
 	string line;
 	char split_char = '\t';
-	int long ncolumns;
+	int long ncolumns{};
 	//process first row, moving class to the front and extracting number of columns
 	if (getline(inFile, line)) {
 		istringstream split(line);
@@ -34,7 +35,7 @@ int ImportData(dMat& Matrix, string filename) {
 		for (string entry; getline(split, entry, split_char); record.push_back(entry));
 		ncolumns = record.size();
 		vector<double> entry1;
-		entry1.push_back(stod(record[ncolumns - 1]) * 2 - 1);
+		entry1.push_back(stod(record[1.*(ncolumns - 1)]) * 2 - 1);
 		for (int i = 0; i < ncolumns - 1; i++) entry1.push_back(stod(record[i]));
 
 		//add to matrix
@@ -62,7 +63,11 @@ int ImportData(dMat& Matrix, string filename) {
 
 	return 0;
 }
-int ImportDataRR(dMat& Matrix, dVec results, string filename) {
+int ImportDataRR(dMat& Matrix, dVec& results, string filename,char split_char,bool ylast) {
+	//this file imports data and prepares it for Ridge Regression, putting the covariates into a matrix
+	//with rows of the form(1,x1,x2,...,xd), and creates a results vector (y1,...,yn). Split_char is the 
+	//character than separates entries in the .txt file, and ylast indicates whether the dependent variable
+	//is listed first or last
 	//open file
 	ifstream inFile;
 	inFile.open(filename);
@@ -72,22 +77,25 @@ int ImportDataRR(dMat& Matrix, dVec results, string filename) {
 		return 0;
 	}
 	string line;
-	char split_char = ',';
-	int long ncolumns{};
+	
+	int ncolumns{};
+	
 	vector<string> record;
 	vector<double> entry1;
+	int y = (ylast == true)? 1 : 0;
 	//process first row, 
 	if (getline(inFile, line)) {
 		istringstream split(line);
 		for (string entry; getline(split, entry, split_char); record.push_back(entry));
 		ncolumns = record.size();
 		//push back (1,x1,x2,..,xd)
-		entry1.push_back(1);
-		for (int i = 0; i < ncolumns - 1; i++) entry1.push_back(stod(record[i]));
+		entry1.push_back(1.0);
+		for (int i = 1-y; i < ncolumns - y; i++) entry1.push_back(stod(record[i]));
 
 		//add to matrix, and put y in Result
 		Matrix.push_back(entry1);
-		results.push_back(stod(record[1 * (ncolumns - 1)]));
+		results.push_back(stod(record[y * (ncolumns - 1)]));
+		
 		record.clear();
 		entry1.clear();
 	}
@@ -99,12 +107,13 @@ int ImportDataRR(dMat& Matrix, dVec results, string filename) {
 			cout << "database dimension error" << exit;
 		}
 		//define a new entry		
-		entry1.push_back(1);
-		for (int i = 0; i < ncolumns - 1; i++) entry1.push_back(stod(record[i]));
-
+		entry1.push_back(1.0);
+		for (int i = 1-y; i < ncolumns - y; i++) entry1.push_back(stod(record[i]));
+		
 		//add entry to matrix, and result to vector
 		Matrix.push_back(entry1);
-		results.push_back(stod(record[1 * (ncolumns - 1)]));
+		results.push_back(stod(record[y*(ncolumns - 1)]));
+		
 		record.clear();
 		entry1.clear();
 	}
@@ -124,7 +133,7 @@ double inner_prod(dVec v, dVec u, int start) {
 }
 
 void CVrandomSampling(dMatMat& CVtrain, dMat& CVtrainresults, dMatMat& CVtest, dMat& CVtestresults, dMat data, dVec results) {
-	cout << "1";
+	srand(time(NULL));
 	dMat train, test;
 	dVec resultstemp;
 	int n = data.size();
@@ -137,34 +146,34 @@ void CVrandomSampling(dMatMat& CVtrain, dMat& CVtrainresults, dMatMat& CVtest, d
 	n_test[3] = m;
 	n_test[4] = n - 4 * m;
 
-	cout << "2";
+	
 	//label all pieces of vector as "unchosen"
 	dVec sort(n, -1);
-	cout << "3";
+	
 	//decide where each record will go
 	for (int i = 0; i < 5; i++) {
-		cout << "4";
+		
 		//start a counter
 		int counter = 0;
 		while (counter < n_test[i]) {
 			//sample a random number from [data.size()]
 			int j = rand() % data.size();
 			//if it's unchosen, add it to the fold
-			cout << "5";
+			
 			if (sort[j] == -1) {
 				sort[j] += 1 * (i + 1);
-				cout << "6";
+				
 				//now add record to testing fold
 				test.push_back(data[j]);
-				cout << "7";
+				
 				//and add result to resultstemp
 				resultstemp.push_back(results[j]);
-				cout << "8";
+				
 				counter++;
 
 			}
 		}
-		cout << "6";
+		
 		CVtest.push_back(test);
 		CVtestresults.push_back(resultstemp);
 		test.clear();
@@ -191,5 +200,53 @@ void CVrandomSampling(dMatMat& CVtrain, dMat& CVtrainresults, dMatMat& CVtest, d
 		resultstemp.clear();
 	}
 }
+
+void scale_fit(dMat& data, dVec& a, dVec& b,double k) {
+	//this function takes a matrix with rows in the form (1,x1,x2,...,xd) and scales each column so
+	//that every entry is in [0,k]. It keeps these scaling factors aX+b in the vectors a and b so that
+	//the same scaling can be applied to the testing data
+	double maxtemp, mintemp,temp;
+	for (int i = 1; i < data[0].size(); i++) {
+		maxtemp = data[0][i];
+		mintemp = data[0][i];
+		for (int j = 0; j < data.size(); j++) {
+			if (data[j][i] < mintemp)mintemp = data[j][i];
+			if (data[j][i] > maxtemp)maxtemp = data[j][i];
+		}
+		
+		temp = (maxtemp - mintemp);
+		
+		a.push_back(1/temp);
+		/*cout << "pushing back: " << a[i-1] << "\n";*/
+		b.push_back((( mintemp) / (mintemp-maxtemp)));
+		/*cout << "pushing back: " << b[i-1] << "\n";*/
+		for (int j = 0; j < data.size(); j++) {
+			data[j][i] = a[i-1] * data[j][i] + b[i-1];
+		}
+	}
+
+}
+void scale(dMat& data, dVec a, dVec b) {
+	//this function takes scaling vectors a and b and maps column i X -> a[i]X+b[i], leaving the first column
+	for(int j = 0; j<data.size();j++){
+		for (int i = 1; i < data[0].size(); i++) {
+			data[j][i] = a[i-1] * data[j][i] + b[i-1];
+		}
+	}
+}
+
+void center(dVec& v,double& mean) {
+	//this function centers a results vector: explicitly, it shifts each y by ybar
+	mean = v[0];
+	for (int i = 1; i < v.size(); i++)mean += v[i];
+	mean /= v.size();
+	for (int i = 0; i < v.size(); i++)v[i] -= mean;
+}
+
+void shift_results(dVec& v,double mean) {
+	//this function shifts a results vector by a constant. Used to test performance of a shifted model
+	for (int j = 0; j < v.size(); j++)v[j] -= mean;
+}
+
 
 

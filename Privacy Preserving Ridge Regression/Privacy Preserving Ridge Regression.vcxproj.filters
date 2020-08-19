@@ -24,6 +24,9 @@
     <ClCompile Include="databasetools.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="plaintextRR.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="databasetools.h">
@@ -32,9 +35,21 @@
     <ClInclude Include="ridgeregressiontools.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="plaintextRR.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="boston_housing.txt">
+      <Filter>Source Files</Filter>
+    </Text>
+    <Text Include="winequality.txt">
+      <Filter>Source Files</Filter>
+    </Text>
+    <Text Include="californiahousingfull.txt">
+      <Filter>Source Files</Filter>
+    </Text>
+    <Text Include="californiahousingredux.txt">
       <Filter>Source Files</Filter>
     </Text>
   </ItemGroup>
