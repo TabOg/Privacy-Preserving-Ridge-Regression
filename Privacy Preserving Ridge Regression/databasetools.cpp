@@ -247,6 +247,13 @@ void shift_results(dVec& v,double mean) {
 	//this function shifts a results vector by a constant. Used to test performance of a shifted model
 	for (int j = 0; j < v.size(); j++)v[j] -= mean;
 }
+//
+//for (int i = 0; i < D.size(); i++) {
+//	cout << "(";
+//	for (int j = 0; j < data[0].size() - 1; j++)cout << D[i][j] << ",";
+//	cout << D[i][data[0].size() - 1] << ")\n";
+//}
+
 
 
 

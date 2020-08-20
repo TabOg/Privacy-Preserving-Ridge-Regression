@@ -16,7 +16,7 @@ using namespace seal;
 typedef vector<double> dVec;
 typedef vector<vector<double>> dMat;
 typedef vector<Ciphertext> cVec;
-typedef vector<Plaintext> PVec;
+typedef vector<Plaintext> pVec;
 typedef vector<dMat> dMatMat;
 
 int ImportData(dMat& Z, string filename);
