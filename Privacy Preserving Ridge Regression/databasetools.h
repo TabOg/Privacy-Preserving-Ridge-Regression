@@ -16,6 +16,7 @@ using namespace seal;
 typedef vector<double> dVec;
 typedef vector<vector<double>> dMat;
 typedef vector<Ciphertext> cVec;
+typedef vector<cVec> cMat;
 typedef vector<Plaintext> pVec;
 typedef vector<dMat> dMatMat;
 
@@ -24,7 +25,7 @@ int ImportDataRR(dMat& Matrix, dVec& results, string filename, char split_char =
 double inner_prod(dVec v, dVec u, int start = 0);
 void CVrandomSampling(dMatMat& CVtrain, dMat& CVtrainresults, dMatMat& CVtest, dMat& CVtestresults, dMat data, dVec results);
 void scale_fit(dMat& data, dVec& a, dVec& b,double k =1);
-void scale(dMat& data, dVec a, dVec b);
+void scale_columns(dMat& data, dVec a, dVec b);
 void center(dVec& v, double& mean);
 void shift_results(dVec& v, double mean);
 #endif

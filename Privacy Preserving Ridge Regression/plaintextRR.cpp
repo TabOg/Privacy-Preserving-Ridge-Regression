@@ -34,25 +34,28 @@ int RR_gradient_descent(string file, char split_char, bool y_last,double lambda,
 		mean = 0;
 		center(cvtrainresults[j], mean);
 		scale_fit(cvtrain[j], a, b);
-		cout << "iteration " << 0 << " r^2 : " << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";
+		scale_columns(cvtest[j], a, b);
+		shift_results(cvtestresults[j], mean);
+		/*cout << "iteration " << 0 << " r^2 : " << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";*/
 		for (int k = 0; k < iternum; k++) {
 
 			RR_GD_iteration(weights, cvtrain[j], cvtrainresults[j], alpha, lambda);
-			/*cout << "(";
+			cout << "fold" << j + 1 << ", iteration " << k + 1 << " CV r^2: " << Rsquared(cvtest[j], cvtestresults[j], weights) << "%\n";
+			cout << "(";
 			for (int i = 0; i < weights.size() - 1; i++)cout << weights[i] << ",";
-			cout << weights[weights.size() - 1] << ")\n";*/
-			
+			cout << weights[weights.size() - 1] << ")\n";
+			/*cout << "iteration" << k + 1<< "r^2:" << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";*/
 		}
-		cout << "iteration" << iternum << "r^2:" << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";
-		scale(cvtest[j], a, b);
-		shift_results(cvtestresults[j], mean);
-		cout << "fold" << j << " r^2: " << Rsquared(cvtest[j], cvtestresults[j], weights) << "%\n";
+		cout << "iteration " << iternum << " r^2:" << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";
+
+		cout << "fold " << j << " CV r^2: " << Rsquared(cvtest[j], cvtestresults[j], weights) << "%\n";
 		avgr2 += Rsquared(cvtest[j], cvtestresults[j], weights);
 		a.clear();
 		b.clear();		
 	}
 	avgr2 /= 5;
-	cout << "average cross validation accuracy: " << avgr2 << "%";
+	cout << "average cross validation accuracy: " << avgr2 << "%\n";
+	weights.clear();
 	return 0;
 }
 int RR_NAG_descent(string file, char split_char, bool y_last, double lambda, double alpha, int iternum) {
@@ -99,7 +102,7 @@ int RR_NAG_descent(string file, char split_char, bool y_last, double lambda, dou
 			RR_NAG_iteration(beta, v, cvtrain[j], cvtrainresults[j], alpha, gamma, lambda);
 		}
 		cout << "iteration "<<iternum<<" r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], v) << "%\n";
-		scale(cvtest[j], a, b);
+		scale_columns(cvtest[j], a, b);
 		shift_results(cvtestresults[j], mean);
 		cout <<"fold "<< j << " r^2: " << Rsquared(cvtest[j], cvtestresults[j], v) << "%\n";
 		avgr2 += Rsquared(cvtest[j], cvtestresults[j], v);
@@ -142,7 +145,7 @@ int RR_fixed_Hessian(string file, char split_char, bool y_last, double lambda, i
 		mean = 0;
 		center(cvtrainresults[j], mean);
 		scale_fit(cvtrain[j], a, b);
-		cout << "iteration" << 0 << " r^2 : " << Rsquared(cvtrain[j], cvtrainresults[j], beta) << "%\n";
+		/*cout << "iteration" << 0 << " r^2 : " << Rsquared(cvtrain[j], cvtrainresults[j], beta) << "%\n";*/
 		for (int i = 0; i < cvtrain[j].size(); i++) {
 			alpha = 0;
 			for (int k = 0; k < cvtrain[j][0].size(); k++) {
@@ -167,7 +170,7 @@ int RR_fixed_Hessian(string file, char split_char, bool y_last, double lambda, i
 			RR_fixed_Hessian_iteration(beta, cvtrain[j], cvtrainresults[j], H, lambda);			
 		}
 		cout << "iteration " << iternum << " r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], beta) << "%\n";
-		scale(cvtest[j], a, b);
+		scale_columns(cvtest[j], a, b);
 		shift_results(cvtestresults[j], mean);
 		cout << j << "th fold r^2: " << Rsquared(cvtest[j], cvtestresults[j], beta) << "%\n";
 		avgr2 += Rsquared(cvtest[j], cvtestresults[j], beta);

@@ -1,14 +1,9 @@
-#include <iostream>
+#include "seal/seal.h"
 #include "databasetools.h"
 #include "ridgeregressiontools.h"
-#include "plaintextRR.h"
-#include "seal/seal.h"
+#include <iostream>
 
-using namespace std;
-using namespace seal;
-
-int main() {
-    
+int Gradient_Descent_RR(double alpha,double lambda) {
     EncryptionParameters parms(scheme_type::CKKS);
     size_t poly_modulus_degree = 32768;
     vector<int> mod;
@@ -62,7 +57,7 @@ int main() {
 
     //encode the rows of the matrix C
     pVec Cplain;
-    Plaintext ptemp,ptemp1;
+    Plaintext ptemp, ptemp1;
     for (int i = 0; i < C.size(); i++) {
         encoder.encode(C[i], scale, ptemp);
         Cplain.push_back(ptemp);
@@ -71,7 +66,7 @@ int main() {
     for (int i = 0; i < C.size(); i++) {
         encoder.encode(I[i], scale, ptemp);
         Iplain.push_back(ptemp);
-    }    
+    }
 
     //cross validation
     dMatMat cvtrain, cvtest;
@@ -89,17 +84,17 @@ int main() {
     //cout << "3 -- " << cvtest[2].size() << "--" << cvtestresults[2].size() << "\n";
     //cout << "4 -- " << cvtest[3].size() << "--" << cvtestresults[3].size() << "\n";
     //cout << "5 -- " << cvtest[4].size() << "--" << cvtestresults[4].size() << "\n";
-    dVec a, b,input;
+    dVec a, b, input;
     double mean;
     int nfeatures, n;
     pVec dataplain;
     Plaintext resultsplain, lambdap, alphap;
     cVec dataenc;
     Ciphertext ctemp, ctemp1, resultsenc, Y, allsumtemp, Ytemp;
-    Plaintext ;
+    Plaintext;
     encoder.encode(lambda, scale, lambdap);
     encoder.encode(alpha, scale, alphap);
-    
+
     double avgr2 = 0;
 
     for (int j = 0; j < 5; j++) {
@@ -113,7 +108,7 @@ int main() {
         //start by centering the results, and fitting the scale to the data
         center(cvtrainresults[j], mean);
         scale_fit(cvtrain[j], a, b);
-        
+
         //extract dimensions
         nfeatures = cvtrain[j][0].size();
         n = cvtrain[j].size();
@@ -127,8 +122,8 @@ int main() {
             for (int k = 0; k < n; k++)input.push_back(cvtrain[j][k][i]);
             encoder.encode(input, scale, ptemp);
             dataplain.push_back(ptemp);
-        }        
-        
+        }
+
         encoder.encode(cvtrainresults[j], scale, resultsplain);
         end = chrono::steady_clock::now();
         diff = end - start;
@@ -141,19 +136,19 @@ int main() {
             encryptor.encrypt(dataplain[i], ctemp);
             dataenc.push_back(ctemp);
         }
-        
+
         encryptor.encrypt(resultsplain, resultsenc);
         end = chrono::steady_clock::now();
         diff = end - start;
         cout << "Encrypting time = " << chrono::duration <double, milli>(diff).count() / 1000.0 << " s \n";
         auto trainstart = chrono::steady_clock::now();
         cout << "Forming Y...";
-        
+
         //first we create a vector with Y1 in the first slot --
         //multiply X1 and the results vector
         evaluator.multiply(dataenc[0], resultsenc, allsumtemp);
         evaluator.relinearize_inplace(allsumtemp, relin_keys);
-        evaluator.rescale_to_next_inplace(allsumtemp);        
+        evaluator.rescale_to_next_inplace(allsumtemp);
         //allsum 
         for (int k = 0; k < log2(slot_count); k++) {
             ctemp = allsumtemp;
@@ -167,7 +162,7 @@ int main() {
         evaluator.multiply_plain(allsumtemp, ptemp, Y);
         evaluator.rescale_to_next_inplace(Y);
         //now we add all the other entries
-        
+
         for (int l = 2; l < nfeatures; l++) {
             //multiply Xl and the results vector
             evaluator.multiply(dataenc[1. * l - 1], resultsenc, ctemp);
@@ -188,9 +183,9 @@ int main() {
             evaluator.rescale_to_next_inplace(allsumtemp);
 
             //add to Y
-            evaluator.add_inplace(Y, allsumtemp);            
+            evaluator.add_inplace(Y, allsumtemp);
         }
-        
+
         //first iteration is beta = Y. We set this now: 
         Ciphertext Beta = Y;
 
@@ -225,7 +220,7 @@ int main() {
             evaluator.rescale_to_next_inplace(allsumtemp);
             evaluator.mod_switch_to_next_inplace(allsumtemp);
             //form Mii:
-            
+
             evaluator.square(Xtemp, ctemp);
             evaluator.relinearize_inplace(ctemp, relin_keys);
             evaluator.rescale_to_next_inplace(ctemp);
@@ -268,11 +263,11 @@ int main() {
                 evaluator.rescale_to_next_inplace(allsumtemp);
                 evaluator.add_inplace(M[i], allsumtemp);
             }
-        }                  
+        }
         for (int i = 0; i < nfeatures; i++) {
             evaluator.negate_inplace(M[i]);
         }
-        
+
 
 
         //iterations:
@@ -337,11 +332,9 @@ int main() {
         shift_results(cvtestresults[j], mean);
         for (int i = 0; i < nfeatures; i++)weights.push_back(input[i]);
         cout << "fold " << j + 1 << " final r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";
-        cout << "fold " << j + 1 << " cross validation r^2: "<< Rsquared(cvtest[j], cvtestresults[j], weights) << "%\n";
+        cout << "fold " << j + 1 << " cross validation r^2: " << Rsquared(cvtest[j], cvtestresults[j], weights) << "%\n";
         avgr2 += Rsquared(cvtest[j], cvtestresults[j], weights);
     }
     cout << "Average Cross Validation r^2: " << avgr2 / 5 << "%";
-	return 0;
+    return 0;
 }
-		
-	

@@ -41,8 +41,7 @@ double Rsquared(dMat data, dVec results, dVec weights) {
 void RR_GD_iteration(dVec& weights, dMat data, dVec results, double alpha, double lambda) {
 	//processes data with entries of the form (1,x1,x2,..,xd)
 	dVec grad(data[0].size(),0.0);
-	double temp;
-	
+	double temp;	
 	for (int i = 0; i < data.size(); i++) {
 		temp = results[i] - inner_prod(data[i], weights);
 		for (int j = 0; j < data[0].size(); j++) {

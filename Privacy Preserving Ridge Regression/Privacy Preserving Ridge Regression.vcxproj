@@ -153,10 +153,12 @@
     <ClCompile Include="databasetools.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="plaintextRR.cpp" />
+    <ClCompile Include="GD.cpp" />
     <ClCompile Include="ridgeregressiontools.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="databasetools.h" />
+    <ClInclude Include="main.h" />
     <ClInclude Include="plaintextRR.h" />
     <ClInclude Include="ridgeregressiontools.h" />
   </ItemGroup>

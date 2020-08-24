@@ -133,7 +133,7 @@ double inner_prod(dVec v, dVec u, int start) {
 }
 
 void CVrandomSampling(dMatMat& CVtrain, dMat& CVtrainresults, dMatMat& CVtest, dMat& CVtestresults, dMat data, dVec results) {
-	srand(time(NULL));
+	/*srand(time(NULL));*/
 	dMat train, test;
 	dVec resultstemp;
 	int n = data.size();
@@ -216,9 +216,9 @@ void scale_fit(dMat& data, dVec& a, dVec& b,double k) {
 		
 		temp = (maxtemp - mintemp);
 		
-		a.push_back(1/temp);
+		a.push_back(k/temp);
 		/*cout << "pushing back: " << a[i-1] << "\n";*/
-		b.push_back((( mintemp) / (mintemp-maxtemp)));
+		b.push_back((k*mintemp) / (mintemp-maxtemp));
 		/*cout << "pushing back: " << b[i-1] << "\n";*/
 		for (int j = 0; j < data.size(); j++) {
 			data[j][i] = a[i-1] * data[j][i] + b[i-1];
@@ -226,7 +226,7 @@ void scale_fit(dMat& data, dVec& a, dVec& b,double k) {
 	}
 
 }
-void scale(dMat& data, dVec a, dVec b) {
+void scale_columns(dMat& data, dVec a, dVec b) {
 	//this function takes scaling vectors a and b and maps column i X -> a[i]X+b[i], leaving the first column
 	for(int j = 0; j<data.size();j++){
 		for (int i = 1; i < data[0].size(); i++) {
