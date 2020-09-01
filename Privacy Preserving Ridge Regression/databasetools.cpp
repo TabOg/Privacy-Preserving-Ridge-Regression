@@ -133,7 +133,7 @@ double inner_prod(dVec v, dVec u, int start) {
 }
 
 void CVrandomSampling(dMatMat& CVtrain, dMat& CVtrainresults, dMatMat& CVtest, dMat& CVtestresults, dMat data, dVec results) {
-	srand(time(NULL));
+	/*srand(time(NULL));*/
 	dMat train, test;
 	dVec resultstemp;
 	int n = data.size();

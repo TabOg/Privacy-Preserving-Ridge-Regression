@@ -11,18 +11,18 @@ int RR_gradient_descent(string file, char split_char, bool y_last,double lambda,
 	dMatMat cvtrain, cvtest;
 	dMat cvtrainresults, cvtestresults;
 
-	CVrandomSampling(cvtrain, cvtrainresults, cvtest, cvtestresults, data, results);
-	cout << "fold sizes are:\n1 -- " << cvtrain[0].size() << "--" << cvtrainresults[0].size() << "\n";
-	cout << "2 -- " << cvtrain[1].size() << "--" << cvtrainresults[1].size() << "\n";
-	cout << "3 -- " << cvtrain[2].size() << "--" << cvtrainresults[2].size() << "\n";
-	cout << "4 -- " << cvtrain[3].size() << "--" << cvtrainresults[3].size() << "\n";
-	cout << "5 -- " << cvtrain[4].size() << "--" << cvtrainresults[4].size() << "\n";
+	//CVrandomSampling(cvtrain, cvtrainresults, cvtest, cvtestresults, data, results);
+	//cout << "fold sizes are:\n1 -- " << cvtrain[0].size() << "--" << cvtrainresults[0].size() << "\n";
+	//cout << "2 -- " << cvtrain[1].size() << "--" << cvtrainresults[1].size() << "\n";
+	//cout << "3 -- " << cvtrain[2].size() << "--" << cvtrainresults[2].size() << "\n";
+	//cout << "4 -- " << cvtrain[3].size() << "--" << cvtrainresults[3].size() << "\n";
+	//cout << "5 -- " << cvtrain[4].size() << "--" << cvtrainresults[4].size() << "\n";
 
-	cout << "test sizes are:\n1 -- " << cvtest[0].size() << "--" << cvtestresults[0].size() << "\n";
-	cout << "2 -- " << cvtest[1].size() << "--" << cvtestresults[1].size() << "\n";
-	cout << "3 -- " << cvtest[2].size() << "--" << cvtestresults[2].size() << "\n";
-	cout << "4 -- " << cvtest[3].size() << "--" << cvtestresults[3].size() << "\n";
-	cout << "5 -- " << cvtest[4].size() << "--" << cvtestresults[4].size() << "\n";
+	//cout << "test sizes are:\n1 -- " << cvtest[0].size() << "--" << cvtestresults[0].size() << "\n";
+	//cout << "2 -- " << cvtest[1].size() << "--" << cvtestresults[1].size() << "\n";
+	//cout << "3 -- " << cvtest[2].size() << "--" << cvtestresults[2].size() << "\n";
+	//cout << "4 -- " << cvtest[3].size() << "--" << cvtestresults[3].size() << "\n";
+	//cout << "5 -- " << cvtest[4].size() << "--" << cvtestresults[4].size() << "\n";
 
 	dVec weights(data[0].size(), 0.0);
 	dVec a, b;
@@ -38,16 +38,13 @@ int RR_gradient_descent(string file, char split_char, bool y_last,double lambda,
 		shift_results(cvtestresults[j], mean);
 		/*cout << "iteration " << 0 << " r^2 : " << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";*/
 		for (int k = 0; k < iternum; k++) {
-
 			RR_GD_iteration(weights, cvtrain[j], cvtrainresults[j], alpha, lambda);
 			cout << "fold" << j + 1 << ", iteration " << k + 1 << " CV r^2: " << Rsquared(cvtest[j], cvtestresults[j], weights) << "%\n";
-			cout << "(";
-			for (int i = 0; i < weights.size() - 1; i++)cout << weights[i] << ",";
-			cout << weights[weights.size() - 1] << ")\n";
+			//cout << "(";
+			//for (int i = 0; i < weights.size() - 1; i++)cout << weights[i] << ",";
+			//cout << weights[weights.size() - 1] << ")\n";
 			/*cout << "iteration" << k + 1<< "r^2:" << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";*/
 		}
-		cout << "iteration " << iternum << " r^2:" << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";
-
 		cout << "fold " << j << " CV r^2: " << Rsquared(cvtest[j], cvtestresults[j], weights) << "%\n";
 		avgr2 += Rsquared(cvtest[j], cvtestresults[j], weights);
 		a.clear();
@@ -67,17 +64,17 @@ int RR_NAG_descent(string file, char split_char, bool y_last, double lambda, dou
 	dMat cvtrainresults, cvtestresults;
 
 	CVrandomSampling(cvtrain, cvtrainresults, cvtest, cvtestresults, data, results);
-	cout << "fold sizes are:\n1 -- " << cvtrain[0].size() << "--" << cvtrainresults[0].size() << "\n";
-	cout << "2 -- " << cvtrain[1].size() << "--" << cvtrainresults[1].size() << "\n";
-	cout << "3 -- " << cvtrain[2].size() << "--" << cvtrainresults[2].size() << "\n";
-	cout << "4 -- " << cvtrain[3].size() << "--" << cvtrainresults[3].size() << "\n";
-	cout << "5 -- " << cvtrain[4].size() << "--" << cvtrainresults[4].size() << "\n";
+	//cout << "fold sizes are:\n1 -- " << cvtrain[0].size() << "--" << cvtrainresults[0].size() << "\n";
+	//cout << "2 -- " << cvtrain[1].size() << "--" << cvtrainresults[1].size() << "\n";
+	//cout << "3 -- " << cvtrain[2].size() << "--" << cvtrainresults[2].size() << "\n";
+	//cout << "4 -- " << cvtrain[3].size() << "--" << cvtrainresults[3].size() << "\n";
+	//cout << "5 -- " << cvtrain[4].size() << "--" << cvtrainresults[4].size() << "\n";
 
-	cout << "test sizes are:\n1 -- " << cvtest[0].size() << "--" << cvtestresults[0].size() << "\n";
-	cout << "2 -- " << cvtest[1].size() << "--" << cvtestresults[1].size() << "\n";
-	cout << "3 -- " << cvtest[2].size() << "--" << cvtestresults[2].size() << "\n";
-	cout << "4 -- " << cvtest[3].size() << "--" << cvtestresults[3].size() << "\n";
-	cout << "5 -- " << cvtest[4].size() << "--" << cvtestresults[4].size() << "\n";
+	//cout << "test sizes are:\n1 -- " << cvtest[0].size() << "--" << cvtestresults[0].size() << "\n";
+	//cout << "2 -- " << cvtest[1].size() << "--" << cvtestresults[1].size() << "\n";
+	//cout << "3 -- " << cvtest[2].size() << "--" << cvtestresults[2].size() << "\n";
+	//cout << "4 -- " << cvtest[3].size() << "--" << cvtestresults[3].size() << "\n";
+	//cout << "5 -- " << cvtest[4].size() << "--" << cvtestresults[4].size() << "\n";
 
 	dVec beta(data[0].size(), 0.0);
 	dVec v = beta;
@@ -101,7 +98,7 @@ int RR_NAG_descent(string file, char split_char, bool y_last, double lambda, dou
 			t = T;
 			RR_NAG_iteration(beta, v, cvtrain[j], cvtrainresults[j], alpha, gamma, lambda);
 		}
-		cout << "iteration "<<iternum<<" r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], v) << "%\n";
+	/*	cout << "iteration "<<iternum<<" r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], v) << "%\n";*/
 		scale_columns(cvtest[j], a, b);
 		shift_results(cvtestresults[j], mean);
 		cout <<"fold "<< j << " r^2: " << Rsquared(cvtest[j], cvtestresults[j], v) << "%\n";

@@ -77,7 +77,7 @@ int main() {
             cout << "number of iterations = ";
             cin >> iternum;
         }
-        RR_gradient_descent("boston_housing.txt", ',', true, stod(alpha), stod(lambda), stoi(iternum));
+        RR_gradient_descent("boston_housing.txt", ',', true, stod(lambda), stod(alpha), stoi(iternum));
         
         break;
 
@@ -103,7 +103,7 @@ int main() {
             cout << "number of iterations = ";
             cin >> iternum;
         }
-        RR_NAG_descent("boston_housing.txt", ',', true, stod(alpha), stod(lambda), stoi(iternum));
+        RR_NAG_descent("boston_housing.txt", ',', true, stod(lambda),stod(alpha), stoi(iternum));
         break;
 
     case 3:
