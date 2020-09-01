@@ -145,18 +145,21 @@ int RR_fixed_Hessian(string file, char split_char, bool y_last, double lambda, i
 		mean = 0;
 		center(cvtrainresults[j], mean);
 		scale_fit(cvtrain[j], a, b);
-		/*cout << "iteration" << 0 << " r^2 : " << Rsquared(cvtrain[j], cvtrainresults[j], beta) << "%\n";*/
+		H.clear();
+		
 		for (int i = 0; i < cvtrain[j].size(); i++) {
 			alpha = 0;
 			for (int k = 0; k < cvtrain[j][0].size(); k++) {
 				alpha += cvtrain[j][i][k];
-				sum.push_back(alpha);
 			}
+			sum.push_back(alpha);
 		}
+
 		alpha = 0;
 		for (int i = 0; i < cvtrain[j].size(); i++) {
 			alpha += sum[i];
 		}
+		cout << alpha << ",";
 		H.push_back(1. / alpha);
 		for (int i = 1; i < cvtrain[j][0].size(); i++) {
 			alpha = 0;
@@ -164,10 +167,17 @@ int RR_fixed_Hessian(string file, char split_char, bool y_last, double lambda, i
 				alpha += cvtrain[j][k][i] * sum[k];
 			}
 			alpha += lambda;
+			cout << alpha << ",";
 			H.push_back(1. / alpha);
 		}
+		cout << "\n";
+		cout << "(";
+		for (int i = 0; i < H.size() - 1; i++)cout << H[i] << ",";
+		cout << H[H.size() - 1] << ")\n";
+
 		for (int k = 0; k < iternum; k++) {
-			RR_fixed_Hessian_iteration(beta, cvtrain[j], cvtrainresults[j], H, lambda);			
+			RR_fixed_Hessian_iteration(beta, cvtrain[j], cvtrainresults[j], H, lambda);
+			cout << "iteration " << k + 1 << " r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], beta) << "%\n";
 		}
 		cout << "iteration " << iternum << " r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], beta) << "%\n";
 		scale_columns(cvtest[j], a, b);

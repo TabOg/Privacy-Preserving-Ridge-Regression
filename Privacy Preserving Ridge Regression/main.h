@@ -8,4 +8,6 @@
 using namespace std;
 using namespace seal;
 
-int Gradient_Descent_RR(double alpha,double lambda);
+int PP_Gradient_Descent_RR(double alpha,double lambda);
+int PP_Nesterov_Gradient_Descent_RR(double alpha, double lambda);
+int PP_Fixed_Hessian_RR(double lambda);

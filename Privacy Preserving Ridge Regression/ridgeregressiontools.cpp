@@ -91,3 +91,10 @@ void RR_fixed_Hessian_iteration(dVec& beta, dMat data, dVec results, dVec H, dou
 		beta[j] = ((1 - H[j] * lambda) * beta[j] + H[j] * (grad[j]));
 	}
 }
+double T1(double X) {
+	return 8 * (X + 1) / (X * X + 6 * X + 1);
+}
+
+double T2(double X) {
+	return (-1. * 8) / (X * X + 6 * X + 1);
+}

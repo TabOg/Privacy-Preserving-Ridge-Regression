@@ -28,4 +28,6 @@ void scale_fit(dMat& data, dVec& a, dVec& b,double k =1);
 void scale_columns(dMat& data, dVec a, dVec b);
 void center(dVec& v, double& mean);
 void shift_results(dVec& v, double mean);
+bool is_numeric(std::string const& str);
+bool is_number(const std::string& s);
 #endif

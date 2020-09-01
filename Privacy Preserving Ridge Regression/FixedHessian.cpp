@@ -3,7 +3,9 @@
 #include "ridgeregressiontools.h"
 #include <iostream>
 
-int PP_Gradient_Descent_RR(double alpha,double lambda) {
+int PP_Fixed_Hessian_RR(double alpha, double lambda) {
+	
+
     EncryptionParameters parms(scheme_type::CKKS);
     size_t poly_modulus_degree = 32768;
     vector<int> mod;
@@ -94,10 +96,7 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
     cVec dataenc;
     Ciphertext ctemp, ctemp1, resultsenc, Y, allsumtemp, Ytemp;
 
-    input.push_back(0);
-    for (int i = 1; i < cvtrain[0][0].size(); i++)input.push_back(lambda);    
     encoder.encode(lambda, scale, lambdap);
-    input.clear();
     encoder.encode(alpha, scale, alphap);
 
     double avgr2 = 0;
@@ -106,7 +105,7 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         a.clear();
         b.clear();
         dataplain.clear();
-        
+        dataenc.clear();
 
         mean = 0;
         cout << "starting fold " << j + 1 << "\n";
@@ -272,7 +271,7 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         for (int i = 0; i < nfeatures; i++) {
             evaluator.negate_inplace(M[i]);
         }
-        dataenc.clear();
+
 
         //iterations:
         for (int k = 2; k < 10; k++) {
@@ -338,5 +337,4 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         avgr2 += Rsquared(cvtest[j], cvtestresults[j], weights);
     }
     cout << "Average Cross Validation r^2: " << avgr2 / 5 << "%";
-    return 0;
 }

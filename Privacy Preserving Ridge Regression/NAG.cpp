@@ -3,12 +3,12 @@
 #include "ridgeregressiontools.h"
 #include <iostream>
 
-int PP_Gradient_Descent_RR(double alpha,double lambda) {
+int PP_Nesterov_Gradient_Descent_RR(double alpha, double lambda) {
     EncryptionParameters parms(scheme_type::CKKS);
     size_t poly_modulus_degree = 32768;
     vector<int> mod;
     mod.push_back(50);
-    for (int i = 0; i < 18; i++)mod.push_back(40);
+    for (int i = 0; i < 17; i++)mod.push_back(40);
     mod.push_back(50);
     parms.set_poly_modulus_degree(poly_modulus_degree);
 
@@ -37,8 +37,8 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
     dVec results;
     ImportDataRR(data, results, "boston_housing.txt", ',', true);
     dVec weights;
-    //double alpha = 0.0009;
-    //double lambda = 1;
+    /*double alpha = 0.0009;
+    double lambda = 1;*/
 
     //define the matrix C, which is zero apart from alphas on the diagonal
     dMat C;
@@ -87,15 +87,15 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
     //cout << "4 -- " << cvtest[3].size() << "--" << cvtestresults[3].size() << "\n";
     //cout << "5 -- " << cvtest[4].size() << "--" << cvtestresults[4].size() << "\n";
     dVec a, b, input;
-    double mean;
+    double mean, t, T, gamma;
     int nfeatures, n;
     pVec dataplain;
-    Plaintext resultsplain, lambdap, alphap;
+    Plaintext resultsplain, lambdap, alphap, gammap, mgammap;
     cVec dataenc;
     Ciphertext ctemp, ctemp1, resultsenc, Y, allsumtemp, Ytemp;
 
     input.push_back(0);
-    for (int i = 1; i < cvtrain[0][0].size(); i++)input.push_back(lambda);    
+    for (int i = 1; i < cvtrain[0][0].size(); i++)input.push_back(lambda);
     encoder.encode(lambda, scale, lambdap);
     input.clear();
     encoder.encode(alpha, scale, alphap);
@@ -106,9 +106,9 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         a.clear();
         b.clear();
         dataplain.clear();
-        
-
+        dataenc.clear();
         mean = 0;
+        t = 1;
         cout << "starting fold " << j + 1 << "\n";
         //start by centering the results, and fitting the scale to the data
         center(cvtrainresults[j], mean);
@@ -191,12 +191,16 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
             evaluator.add_inplace(Y, allsumtemp);
         }
 
-        //first iteration is beta = Y. We set this now: 
+        //first iteration is Beta = Y,v=(1-gamma)Y=Y. We set this now: 
         Ciphertext Beta = Y;
+        Ciphertext v = Beta;
+        //and change t:
+        t = (1. + sqrt(1. + 4 * t * t)) / 2.;
 
+        Ciphertext Betaold;
         cout << "Forming the Matrix M...\n";
         cVec M;
-
+        start = chrono::steady_clock::now();
         //the first entry of M should have first entry alpha*n. We can do this manually.
         input.clear();
         input.push_back(n);
@@ -272,17 +276,27 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         for (int i = 0; i < nfeatures; i++) {
             evaluator.negate_inplace(M[i]);
         }
-        dataenc.clear();
+        end = chrono::steady_clock::now();
+        diff = end - start;
+        cout << "done. Time = " << chrono::duration <double, milli>(diff).count() / 1000.0 << " s \n";
 
         //iterations:
-        for (int k = 2; k < 10; k++) {
+        for (int k = 2; k < 7; k++) {
             cout << "starting iteration " << k << "\n";
+            T = (1. + sqrt(1. + 4 * t * t)) / 2.;
+            gamma = (1. - t) / T;
+            t = T;
+            encoder.encode(gamma, scale, gammap);
+            gamma = 1 - gamma;
+            encoder.encode(gamma, scale, mgammap);
+            //store a copy of Beta
+            Betaold = Beta;
             Ytemp = Y;
             //go feature by feature
             for (int i = 0; i < nfeatures; i++) {
                 //first multiply beta by Mi:
-                evaluator.mod_switch_to_inplace(M[i], Beta.parms_id());
-                evaluator.multiply(M[i], Beta, allsumtemp);
+                evaluator.mod_switch_to_inplace(M[i], v.parms_id());
+                evaluator.multiply(M[i], v, allsumtemp);
                 evaluator.relinearize_inplace(allsumtemp, relin_keys);
                 evaluator.rescale_to_next_inplace(allsumtemp);
                 //now all sum
@@ -295,40 +309,52 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
                 evaluator.mod_switch_to(Iplain[i], allsumtemp.parms_id(), ptemp);
                 evaluator.multiply_plain_inplace(allsumtemp, ptemp);
                 evaluator.rescale_to_next_inplace(allsumtemp);
-                //adjust scale & modulus of Y (should only affect i=0) and add:
+                //adjust scale of Y (should only affect i=0) and add:
                 evaluator.mod_switch_to_inplace(Ytemp, allsumtemp.parms_id());
                 Ytemp.scale() = allsumtemp.scale();
                 evaluator.add_inplace(Ytemp, allsumtemp);
             }
-            //create (1-lambda*alpha)beta:
-            ctemp = Beta;
-            evaluator.mod_switch_to(lambdap, Beta.parms_id(), ptemp);
-            evaluator.multiply_plain_inplace(Beta, ptemp);
-            evaluator.rescale_to_next_inplace(Beta);
-            evaluator.mod_switch_to(alphap, Beta.parms_id(), ptemp);
-            evaluator.multiply_plain_inplace(Beta, ptemp);
-            evaluator.rescale_to_next_inplace(Beta);
-            evaluator.negate_inplace(Beta);
+            //create (1-lambda*alpha)v:
+            ctemp = v;
+            evaluator.mod_switch_to(lambdap, v.parms_id(), ptemp);
+            evaluator.multiply_plain_inplace(v, ptemp);
+            evaluator.rescale_to_next_inplace(v);
+            evaluator.mod_switch_to(alphap, v.parms_id(), ptemp);
+            evaluator.multiply_plain_inplace(v, ptemp);
+            evaluator.rescale_to_next_inplace(v);
+            evaluator.negate_inplace(v);
             evaluator.mod_switch_to_next_inplace(ctemp);
             evaluator.mod_switch_to_next_inplace(ctemp);
-            ctemp.scale() = Beta.scale();
-            evaluator.add_inplace(Beta, ctemp);
-            //and add to Y            
-            Ytemp.scale() = Beta.scale();
-            evaluator.add_inplace(Beta, Ytemp);
-            //weights.clear();
-            //decryptor.decrypt(Beta, ptemp);
-            //encoder.decode(ptemp, input);            
-            //for (int i = 0; i < nfeatures; i++)weights.push_back(input[i]);
-            //
-            //cout << "iteration " << k << " r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], weights)<<"\n";
-            //cout << "iteration " << k << " CV r^2: " << Rsquared(cvtest[j], cvtestresults[j], weights) << "\n";
+            ctemp.scale() = v.scale();
+            evaluator.add_inplace(v, ctemp);
+            //and add to Y, forming Beta         
+            Ytemp.scale() = v.scale();
+            evaluator.add(v, Ytemp, Beta);
+            //now update v = (1-gamma)beta+gamma*betaold
+
+            evaluator.mod_switch_to_inplace(mgammap, Beta.parms_id());
+
+            evaluator.multiply_plain(Beta, mgammap, ctemp);
+            evaluator.rescale_to_next_inplace(ctemp);
+            evaluator.mod_switch_to_inplace(gammap, Betaold.parms_id());
+            evaluator.multiply_plain_inplace(Betaold, gammap);
+            evaluator.rescale_to_next_inplace(Betaold);
+            Betaold.scale() = ctemp.scale();
+            evaluator.mod_switch_to_inplace(Betaold, ctemp.parms_id());
+            evaluator.add(ctemp, Betaold, v);
+            weights.clear();
+            decryptor.decrypt(v, ptemp);
+            encoder.decode(ptemp, input);
+            for (int i = 0; i < nfeatures; i++)weights.push_back(input[i]);
+
+            cout << "iteration " << k << " r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "\n";
+            /*cout << "iteration " << k << " CV r^2: " << Rsquared(cvtest[j], cvtestresults[j], weights) << "\n";*/
         }
         auto trainend = chrono::steady_clock::now();
         diff = trainend - trainstart;
         cout << "fold " << j + 1 << "training done. Time = " << chrono::duration <double, milli>(diff).count() / 1000.0 << " s \n";
         weights.clear();
-        decryptor.decrypt(Beta, ptemp);
+        decryptor.decrypt(v, ptemp);
         encoder.decode(ptemp, input);
         scale_columns(cvtest[j], a, b);
         shift_results(cvtestresults[j], mean);
@@ -336,6 +362,7 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         cout << "fold " << j + 1 << " final r^2: " << Rsquared(cvtrain[j], cvtrainresults[j], weights) << "%\n";
         cout << "fold " << j + 1 << " cross validation r^2: " << Rsquared(cvtest[j], cvtestresults[j], weights) << "%\n";
         avgr2 += Rsquared(cvtest[j], cvtestresults[j], weights);
+ 
     }
     cout << "Average Cross Validation r^2: " << avgr2 / 5 << "%";
     return 0;

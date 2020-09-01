@@ -133,7 +133,7 @@ double inner_prod(dVec v, dVec u, int start) {
 }
 
 void CVrandomSampling(dMatMat& CVtrain, dMat& CVtrainresults, dMatMat& CVtest, dMat& CVtestresults, dMat data, dVec results) {
-	/*srand(time(NULL));*/
+	srand(time(NULL));
 	dMat train, test;
 	dVec resultstemp;
 	int n = data.size();
@@ -253,6 +253,20 @@ void shift_results(dVec& v,double mean) {
 //	for (int j = 0; j < data[0].size() - 1; j++)cout << D[i][j] << ",";
 //	cout << D[i][data[0].size() - 1] << ")\n";
 //}
+
+bool is_numeric(std::string const& str)
+{
+	auto result = double();
+	auto i = std::istringstream(str);
+
+	i >> result;
+
+	return !i.fail() && i.eof();
+}
+
+bool is_number(const std::string& s) {
+	return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
+}
 
 
 

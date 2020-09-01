@@ -30,6 +30,15 @@
     <ClCompile Include="GD.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="NAG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FixedHessian.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FH.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="databasetools.h">
@@ -56,6 +65,9 @@
       <Filter>Source Files</Filter>
     </Text>
     <Text Include="californiahousingredux.txt">
+      <Filter>Source Files</Filter>
+    </Text>
+    <Text Include="BostonDetails.txt">
       <Filter>Source Files</Filter>
     </Text>
   </ItemGroup>

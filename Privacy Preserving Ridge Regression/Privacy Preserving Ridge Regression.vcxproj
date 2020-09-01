@@ -151,7 +151,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="databasetools.cpp" />
+    <ClCompile Include="FH.cpp" />
+    <ClCompile Include="FixedHessian.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="NAG.cpp" />
     <ClCompile Include="plaintextRR.cpp" />
     <ClCompile Include="GD.cpp" />
     <ClCompile Include="ridgeregressiontools.cpp" />
@@ -163,6 +166,7 @@
     <ClInclude Include="ridgeregressiontools.h" />
   </ItemGroup>
   <ItemGroup>
+    <Text Include="BostonDetails.txt" />
     <Text Include="boston_housing.txt" />
     <Text Include="californiahousingfull.txt" />
     <Text Include="californiahousingredux.txt" />
