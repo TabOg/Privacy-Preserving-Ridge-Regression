@@ -152,7 +152,6 @@
   <ItemGroup>
     <ClCompile Include="databasetools.cpp" />
     <ClCompile Include="FH.cpp" />
-    <ClCompile Include="FixedHessian.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NAG.cpp" />
     <ClCompile Include="plaintextRR.cpp" />
