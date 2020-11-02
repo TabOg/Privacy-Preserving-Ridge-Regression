@@ -1,9 +1,13 @@
 #include "seal/seal.h"
 #include "databasetools.h"
 #include "ridgeregressiontools.h"
+#include "threadpool.hpp"
 #include <iostream>
 
 int PP_Gradient_Descent_RR(double alpha,double lambda) {
+    
+    thread_pool::thread_pool tp(10);
+
     EncryptionParameters parms(scheme_type::CKKS);
     size_t poly_modulus_degree = 32768;
     vector<int> mod;
@@ -167,30 +171,40 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         evaluator.multiply_plain(allsumtemp, ptemp, Y);
         evaluator.rescale_to_next_inplace(Y);
         //now we add all the other entries
+        std::vector<Ciphertext> allsums(nfeatures-2);
+        std::mutex allsum_mutex;
 
         for (int l = 2; l < nfeatures; l++) {
-            //multiply Xl and the results vector
-            evaluator.multiply(dataenc[1. * l - 1], resultsenc, ctemp);
-            evaluator.relinearize_inplace(ctemp, relin_keys);
-            evaluator.rescale_to_next_inplace(ctemp);
-            allsumtemp = ctemp;
-            //allsum 
-            for (int k = 0; k < log2(slot_count); k++) {
-                ctemp = allsumtemp;
-                evaluator.rotate_vector_inplace(ctemp, pow(2, k), gal_keys);
-                evaluator.add_inplace(allsumtemp, ctemp);
-            }
+            tp.push([l,&dataenc, resultsenc, &relin_keys, &Cplain, &evaluator, &gal_keys, slot_count, &allsums, &allsum_mutex](){
+            
+                Ciphertext ctemp;
+                //multiply Xl and the results vector
+                evaluator.multiply(dataenc[1. * l - 1], resultsenc, ctemp);
+                evaluator.relinearize_inplace(ctemp, relin_keys);
+                evaluator.rescale_to_next_inplace(ctemp);
+                Ciphertext allsumtemp = ctemp;
+                //allsum 
+                for (int k = 0; k < log2(slot_count); k++) {
+                    Ciphertext ctemp = allsumtemp;
+                    evaluator.rotate_vector_inplace(ctemp, pow(2, k), gal_keys);
+                    evaluator.add_inplace(allsumtemp, ctemp);
+                }
 
-            //multiply by the lth row of alpha C, only retaining sum in lth slot
-            ptemp = Cplain[l];
-            evaluator.mod_switch_to_inplace(ptemp, allsumtemp.parms_id());
-            evaluator.multiply_plain_inplace(allsumtemp, ptemp);
-            evaluator.rescale_to_next_inplace(allsumtemp);
-
-            //add to Y
-            evaluator.add_inplace(Y, allsumtemp);
+                //multiply by the lth row of alpha C, only retaining sum in lth slot
+                Plaintext ptemp = Cplain[l];
+                evaluator.mod_switch_to_inplace(ptemp, allsumtemp.parms_id());
+                evaluator.multiply_plain_inplace(allsumtemp, ptemp);
+                evaluator.rescale_to_next_inplace(allsumtemp);
+                std::lock_guard<std::mutex> lock(allsum_mutex);
+                allsums[l-2] = allsumtemp;
+           });
         }
 
+        tp.wait_work();
+
+        for(const auto& allsum : allsums) {
+            evaluator.add_inplace(Y, allsum);
+        }
         //first iteration is beta = Y. We set this now: 
         Ciphertext Beta = Y;
 
@@ -204,71 +218,124 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         encryptor.encrypt(ptemp, ctemp);
         evaluator.multiply_plain_inplace(ctemp, Cplain[0]);
         evaluator.rescale_to_next_inplace(ctemp);
-        M.push_back(ctemp);
+        M.resize(nfeatures);
+        M[0] = ctemp;
+        std::vector<Ciphertext> xs(nfeatures-1);
+        std::vector<Plaintext> ps(nfeatures-1);
+
+        std::mutex xs_mutex;
+        std::mutex M_mutex;
+
         //now we go feature by feature, forming the rows of M
         for (int i = 1; i < nfeatures; i++) {
-            Ciphertext Xtemp = dataenc[1. * i - 1];
-            //first we allsum Xi, to find Mi0 = M0i
-            allsumtemp = Xtemp;
-            for (int k = 0; k < log2(slot_count); k++) {
-                ctemp = allsumtemp;
-                evaluator.rotate_vector_inplace(ctemp, pow(2, k), gal_keys);
-                evaluator.add_inplace(allsumtemp, ctemp);
-            }
-            //we need two copies of allsum temp -- one for Mi and one for M0.
-            //first we eliminate all but the ith entry and add to M0:
-            evaluator.multiply_plain(allsumtemp, Cplain[i], ctemp);
-            evaluator.rescale_to_next_inplace(ctemp);
-            evaluator.add_inplace(M[0], ctemp);
-            //now we eliminate all but the 0th entry
-            evaluator.multiply_plain_inplace(allsumtemp, Cplain[0]);
-            evaluator.rescale_to_next_inplace(allsumtemp);
-            evaluator.mod_switch_to_next_inplace(allsumtemp);
-            //form Mii:
-
-            evaluator.square(Xtemp, ctemp);
-            evaluator.relinearize_inplace(ctemp, relin_keys);
-            evaluator.rescale_to_next_inplace(ctemp);
-            for (int l = 0; l < log2(slot_count); l++) {
-                ctemp1 = ctemp;
-                evaluator.rotate_vector_inplace(ctemp1, pow(2, l), gal_keys);
-                evaluator.add_inplace(ctemp, ctemp1);
-            }
-
-            //switch down C[i]&multiply, eliminating all but the ith entry
-            evaluator.mod_switch_to_next(Cplain[i], ptemp);
-            evaluator.multiply_plain_inplace(ctemp, ptemp);
-            evaluator.rescale_to_next_inplace(ctemp);
-            //add to allsumtemp, generating a ciphertext Mi0,0,...,0,Mii,0,...,0
-            allsumtemp.scale() = ctemp.scale();
-            evaluator.add_inplace(allsumtemp, ctemp);
-            M.push_back(allsumtemp);
-            //now we form Mik for k < i. This means we don't need to calculate Mik and Mki separately/twice
-            for (int k = 1; k < i; k++) {
-                //first multiply Xi by Xk
-                evaluator.multiply(dataenc[1. * k - 1], Xtemp, allsumtemp);
-                evaluator.relinearize_inplace(allsumtemp, relin_keys);
-                evaluator.rescale_to_next_inplace(allsumtemp);
-                //now we need to allsum allsumtemp.
-                for (int l = 0; l < log2(slot_count); l++) {
-                    ctemp = allsumtemp;
-                    evaluator.rotate_vector_inplace(ctemp, pow(2, l), gal_keys);
+            tp.push([&evaluator, &dataenc, i, slot_count, &relin_keys, &gal_keys, &Cplain, &M, &M_mutex, &xs, &ps, &xs_mutex](){
+                Ciphertext Xtemp = dataenc[1. * i - 1];
+                //first we allsum Xi, to find Mi0 = M0i
+                Ciphertext allsumtemp = Xtemp;
+                for (int k = 0; k < log2(slot_count); k++) {
+                    Ciphertext ctemp = allsumtemp;
+                    evaluator.rotate_vector_inplace(ctemp, pow(2, k), gal_keys);
                     evaluator.add_inplace(allsumtemp, ctemp);
                 }
-                //we need two copies of allsumtemp -- one for M[i] in the kth slot and one for
-                //M[k] in the ith slot...
-                //switch down a copy of C[k]                
-                evaluator.mod_switch_to_next(Cplain[k], ptemp1);
-                //M[k] in the ith slot                
-                evaluator.multiply_plain(allsumtemp, ptemp, ctemp);
+                //we need two copies of allsum temp -- one for Mi and one for M0.
+                //first we eliminate all but the ith entry and add to M0:
+                Ciphertext ctemp;
+                evaluator.multiply_plain(allsumtemp, Cplain[i], ctemp);
                 evaluator.rescale_to_next_inplace(ctemp);
-                evaluator.add_inplace(M[k], ctemp);
-                //M[i] in the kth slot                
-                evaluator.multiply_plain_inplace(allsumtemp, ptemp1);
+                {
+                    std::lock_guard<std::mutex> m_lock(M_mutex);
+                    evaluator.add_inplace(M[0], ctemp);
+                }
+
+                //now we eliminate all but the 0th entry
+                evaluator.multiply_plain_inplace(allsumtemp, Cplain[0]);
                 evaluator.rescale_to_next_inplace(allsumtemp);
-                evaluator.add_inplace(M[i], allsumtemp);
-            }
+                evaluator.mod_switch_to_next_inplace(allsumtemp);
+                
+                //form Mii:
+
+                evaluator.square(Xtemp, ctemp);
+                evaluator.relinearize_inplace(ctemp, relin_keys);
+                evaluator.rescale_to_next_inplace(ctemp);
+                for (int l = 0; l < log2(slot_count); l++) {
+                    Ciphertext ctemp1 = ctemp;
+                    evaluator.rotate_vector_inplace(ctemp1, pow(2, l), gal_keys);
+                    evaluator.add_inplace(ctemp, ctemp1);
+                }
+                   
+                Plaintext ptemp;
+                //switch down C[i]&multiply, eliminating all but the ith entry
+                evaluator.mod_switch_to_next(Cplain[i], ptemp);
+                evaluator.multiply_plain_inplace(ctemp, ptemp);
+                evaluator.rescale_to_next_inplace(ctemp);
+                //add to allsumtemp, generating a ciphertext Mi0,0,...,0,Mii,0,...,0
+                allsumtemp.scale() = ctemp.scale();
+                evaluator.add_inplace(allsumtemp, ctemp);
+                std::lock_guard<std::mutex> m_lock(M_mutex);
+                M[i] = allsumtemp;
+                std::lock_guard<std::mutex> xs_lock(xs_mutex);
+                xs[i-1] = Xtemp;
+                ps[i-1] = ptemp;
+        });
         }
+
+        tp.wait_work();
+        //now we form Mik for k < i. This means we don't need to calculate Mik and Mki separately/twice
+        for(int i = 1; i < nfeatures;i++) {
+            auto ptemp = ps[i-1];
+            auto Xtemp = xs[i-1];
+            std::vector<Ciphertext> M_i_list(i-1);
+            std::mutex Mi_mutex;
+
+            for (int k = 1; k < i; k++) {
+                tp.push([k,i, &Cplain, slot_count, &dataenc, &evaluator, &ptemp, &Xtemp, &gal_keys, &relin_keys, &M_i_list, &M, &M_mutex, &Mi_mutex] {
+
+                    Ciphertext allsumtemp;
+                    //first multiply Xi by Xk
+                    evaluator.multiply(dataenc[1. * k - 1], Xtemp, allsumtemp);
+                    evaluator.relinearize_inplace(allsumtemp, relin_keys);
+                    evaluator.rescale_to_next_inplace(allsumtemp);
+                    //now we need to allsum allsumtemp.
+                    for (int l = 0; l < log2(slot_count); l++) {
+                        Ciphertext ctemp = allsumtemp;
+                        evaluator.rotate_vector_inplace(ctemp, pow(2, l), gal_keys);
+                        evaluator.add_inplace(allsumtemp, ctemp);
+                    }
+
+                    Plaintext ptemp1;
+                    //we need two copies of allsumtemp -- one for M[i] in the kth slot and one for
+                    //M[k] in the ith slot...
+                    //switch down a copy of C[k]                
+                    evaluator.mod_switch_to_next(Cplain[k], ptemp1);
+                    //M[k] in the ith slot                
+                    Ciphertext ctemp;
+                    evaluator.multiply_plain(allsumtemp, ptemp, ctemp);
+                    evaluator.rescale_to_next_inplace(ctemp);
+                    {
+                        std::lock_guard<std::mutex> mk_lock(M_mutex);
+                        evaluator.add_inplace(M[k], ctemp); 
+                    }
+
+                    //M[i] in the kth slot                
+                    evaluator.multiply_plain_inplace(allsumtemp, ptemp1);
+                    evaluator.rescale_to_next_inplace(allsumtemp);
+                    {        
+                        std::lock_guard<std::mutex> mi_lock(Mi_mutex);
+                        M_i_list[k-1] = allsumtemp;
+                    }
+                });
+            }
+            
+            tp.wait_work();
+            for(const auto& mi : M_i_list) {
+                evaluator.add_inplace(M[i], mi);
+                
+            }
+            std::cout << i << std::endl;
+        }
+
+        std::cout << "Formed M" << std::endl;
+
         for (int i = 0; i < nfeatures; i++) {
             evaluator.negate_inplace(M[i]);
         }
@@ -279,27 +346,44 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
             cout << "starting iteration " << k << "\n";
             Ytemp = Y;
             //go feature by feature
+            allsums.resize(nfeatures);
             for (int i = 0; i < nfeatures; i++) {
-                //first multiply beta by Mi:
-                evaluator.mod_switch_to_inplace(M[i], Beta.parms_id());
-                evaluator.multiply(M[i], Beta, allsumtemp);
-                evaluator.relinearize_inplace(allsumtemp, relin_keys);
-                evaluator.rescale_to_next_inplace(allsumtemp);
-                //now all sum
-                for (int l = 0; l < log2(slot_count); l++) {
-                    ctemp = allsumtemp;
-                    evaluator.rotate_vector_inplace(ctemp, pow(2, l), gal_keys);
-                    evaluator.add_inplace(allsumtemp, ctemp);
-                }
-                //delete all but the ith entry by multiplying with Ii
-                evaluator.mod_switch_to(Iplain[i], allsumtemp.parms_id(), ptemp);
-                evaluator.multiply_plain_inplace(allsumtemp, ptemp);
-                evaluator.rescale_to_next_inplace(allsumtemp);
+                tp.push([i, &evaluator, &Iplain, slot_count, &M, &M_mutex, Beta, &relin_keys, &gal_keys, &allsums, &allsum_mutex]() {
+                    //first multiply beta by Mi:
+                    auto local_M = M[i];
+                    evaluator.mod_switch_to_inplace(local_M, Beta.parms_id());
+                    Ciphertext allsumtemp;
+                    evaluator.multiply(local_M, Beta, allsumtemp);
+                    evaluator.relinearize_inplace(allsumtemp, relin_keys);
+                    evaluator.rescale_to_next_inplace(allsumtemp);
+
+                    //now all sum
+                    for (int l = 0; l < log2(slot_count); l++) {
+                        Ciphertext ctemp = allsumtemp;
+                        evaluator.rotate_vector_inplace(ctemp, pow(2, l), gal_keys);
+                        evaluator.add_inplace(allsumtemp, ctemp);
+                    }
+
+                    Plaintext ptemp;
+                    //delete all but the ith entry by multiplying with Ii
+                    evaluator.mod_switch_to(Iplain[i], allsumtemp.parms_id(), ptemp);
+                    evaluator.multiply_plain_inplace(allsumtemp, ptemp);
+                    evaluator.rescale_to_next_inplace(allsumtemp);
+                    std::lock_guard<std::mutex> M_lock(M_mutex);    
+                    allsums[i] = allsumtemp;
+                    M[i] = local_M;
+                });
+            }
+
+            tp.wait_work();
+
+            for(const auto& allsumtemp : allsums) {
                 //adjust scale & modulus of Y (should only affect i=0) and add:
                 evaluator.mod_switch_to_inplace(Ytemp, allsumtemp.parms_id());
                 Ytemp.scale() = allsumtemp.scale();
                 evaluator.add_inplace(Ytemp, allsumtemp);
             }
+
             //create (1-lambda*alpha)beta:
             ctemp = Beta;
             evaluator.mod_switch_to(lambdap, Beta.parms_id(), ptemp);

@@ -303,51 +303,94 @@ int PP_Fixed_Hessian_RR(double lambda) {
             });
         }
 
-        std::cout << "HI" << std::endl;
         tp.wait_work();
-        std::cout << "Hi2" << std::endl;
         //now we form Mik for k < i. This means we don't need to calculate Mik and Mki separately/twice
         for(int i = 1; i < nfeatures;i++) { 
             auto Xtemp = xs[i];
             auto ptemp = ptemps[i];
-
+            
+            std::vector<Ciphertext> H_i_list(i-1);
+            std::vector<Ciphertext> M_i_list(i-1);
+            
+            std::mutex M_i_mutex;
+            std::mutex H_i_mutex;
+                
             for (int k = 1; k < i; k++) {
-                //first multiply Xi by Xk
-                evaluator.multiply(dataenc[1. * k - 1], Xtemp, allsumtemp);
-                evaluator.relinearize_inplace(allsumtemp, relin_keys);
-                evaluator.rescale_to_next_inplace(allsumtemp);
-                //now we need to allsum allsumtemp.
-                for (int l = 0; l < log2(slot_count); l++) {
-                    ctemp = allsumtemp;
-                    evaluator.rotate_vector_inplace(ctemp, pow(2, l), gal_keys);
-                    evaluator.add_inplace(allsumtemp, ctemp);
-                }
-                //For H, we need this added to both H[i] and H[k]. Both should be at the right level
-                //and scale:
-                evaluator.add_inplace(H[i], allsumtemp);
-                evaluator.add_inplace(H[k], allsumtemp);
-                //For M, we need two copies of allsumtemp -- one for M[i] in the kth slot and one for
-                //M[k] in the ith slot...
-                //switch down a copy of I[k]                
-                evaluator.mod_switch_to_next(Iplain[k], ptemp1);
-                //M[k] in the ith slot                
-                evaluator.multiply_plain(allsumtemp, ptemp, ctemp);
-                evaluator.rescale_to_next_inplace(ctemp);
-                evaluator.add_inplace(M[k], ctemp);
-                //M[i] in the kth slot                
-                evaluator.multiply_plain_inplace(allsumtemp, ptemp1);
-                evaluator.rescale_to_next_inplace(allsumtemp);
-                evaluator.add_inplace(M[i], allsumtemp);
-                //we need to add lambda to H[i] for i >0:
-                if (i == nfeatures - 1) {
-                    evaluator.mod_switch_to(lambdap, H[k].parms_id(), ptemp1);
-                    ptemp1.scale() = H[k].scale();
-                    evaluator.add_plain_inplace(H[k], ptemp1);
-                }
+                tp.push([i, k, nfeatures, lambdap, &evaluator, &dataenc, &Xtemp, &gal_keys, &Iplain, &relin_keys, ptemp, slot_count, &H_i_mutex, &H_i_list, &M_i_mutex, &M_i_list, &M, &H, &M_mutex, &H_mutex]{
+                    //first multiply Xi by Xk
+                    Ciphertext allsumtemp;
+                    evaluator.multiply(dataenc[1. * k - 1], Xtemp, allsumtemp);
+                    evaluator.relinearize_inplace(allsumtemp, relin_keys);
+                    evaluator.rescale_to_next_inplace(allsumtemp);
+                    //now we need to allsum allsumtemp.
+                    for (int l = 0; l < log2(slot_count); l++) {
+                        Ciphertext ctemp = allsumtemp;
+                        evaluator.rotate_vector_inplace(ctemp, pow(2, l), gal_keys);
+                        evaluator.add_inplace(allsumtemp, ctemp);
+                    }
+                
+                    //For H, we need this added to both H[i] and H[k]. Both should be at the right level
+                    //and scale:
+                
+                    {
+                        std::lock_guard<std::mutex> H_i_lock(H_i_mutex);
+                        H_i_list[k-1] = allsumtemp;
+                    }
+
+                    {
+                        std::lock_guard<std::mutex> H_k_lock(H_mutex); 
+                        evaluator.add_inplace(H[k], allsumtemp);
+                    }
+
+                
+                    //For M, we need two copies of allsumtemp -- one for M[i] in the kth slot and one for
+                    //M[k] in the ith slot...
+                    //switch down a copy of I[k]                
+                    Plaintext ptemp1;
+                    Ciphertext ctemp;
+                    evaluator.mod_switch_to_next(Iplain[k], ptemp1);
+                
+                    //M[k] in the ith slot                
+                    evaluator.multiply_plain(allsumtemp, ptemp, ctemp);
+                    evaluator.rescale_to_next_inplace(ctemp);
+                
+                    {
+                        std::lock_guard<std::mutex> M_lock(M_mutex);
+                        evaluator.add_inplace(M[k], ctemp);
+                    }
+
+                    
+                    //M[i] in the kth slot                
+                    evaluator.multiply_plain_inplace(allsumtemp, ptemp1);
+                    evaluator.rescale_to_next_inplace(allsumtemp);
+                    {
+                        std::lock_guard<std::mutex> M_i_lock(M_i_mutex);
+                        M_i_list[k-1] = allsumtemp;
+                    }
+
+                    //we need to add lambda to H[i] for i >0:
+                    if (i == nfeatures - 1) {
+                        auto local_HK = H[k];
+                        evaluator.mod_switch_to(lambdap, local_HK.parms_id(), ptemp1);
+                        ptemp1.scale() = local_HK.scale();
+                        evaluator.add_plain_inplace(local_HK, ptemp1);
+                        std::lock_guard<std::mutex> H_lock(H_mutex);
+                        H[k] = local_HK;
+                    }
+                });
             }
+
+            tp.wait_work();
+            for(const auto& mi : M_i_list) {
+                evaluator.add_inplace(M[i], mi);
+            }
+
+            for(const auto& hi : H_i_list) {
+                evaluator.add_inplace(H[i], hi);
+            }
+
         }
 
-        std::cout << "Hi3" << std::endl;
         for (int i = 0; i < nfeatures; i++) {
             evaluator.negate_inplace(M[i]);
         }
