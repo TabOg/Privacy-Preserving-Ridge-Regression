@@ -220,66 +220,97 @@ int PP_Fixed_Hessian_RR(double lambda) {
         evaluator.rescale_to_next_inplace(ctemp);
         M.resize(nfeatures);
         M[0] = ctemp;
+        
+        std::vector<Ciphertext> xs(nfeatures);
+        std::vector<Plaintext> ptemps(nfeatures);
+
+        std::mutex H_mutex;
+        std::mutex M_mutex;
+        std::mutex X_mutex;
+
         //now we go feature by feature, forming the rows of M and H
         for (int i = 1; i < nfeatures; i++) {
-            Ciphertext Xtemp = dataenc[1. * i - 1];
-            //first we allsum Xi, to find Mi0 = M0i
-            allsumtemp = Xtemp;
-            for (int k = 0; k < log2(slot_count); k++) {
-                ctemp = allsumtemp;
-                evaluator.rotate_vector_inplace(ctemp, pow(2, k), gal_keys);
-                evaluator.add_inplace(allsumtemp, ctemp);
-            }
-            //for H, we need this added to H[0] & forming the basis for H[i], both one level down:
-            evaluator.mod_switch_to_next(allsumtemp, ctemp);
-            evaluator.add_inplace(H[0], ctemp);
-            H[i] = ctemp;
-            //cout << "adding M" << i << "0:\n";
-            //for (int i = 0; i < 1; i++) {
-            //    decryptor.decrypt(H[i], ptemp);
-            //    encoder.decode(ptemp, input);
-            //    cout << "(";
-            //    for (int k = 0; k < 15; k++)cout << input[k] << ",";
-            //    cout << "\n";
-            //}
-            //For M, we need two copies of allsum temp -- one for Mi and one for M0.
-            //first we eliminate all but the ith entry and add to M0:
-            evaluator.multiply_plain(allsumtemp, Iplain[i], ctemp);
-            evaluator.rescale_to_next_inplace(ctemp);
-            evaluator.add_inplace(M[0], ctemp);
-            //now we eliminate all but the 0th entry
-            evaluator.multiply_plain_inplace(allsumtemp, Iplain[0]);
-            evaluator.rescale_to_next_inplace(allsumtemp);
-            evaluator.mod_switch_to_next_inplace(allsumtemp);
-            //form Mii:
-            evaluator.square(Xtemp, ctemp);
-            evaluator.relinearize_inplace(ctemp, relin_keys);
-            evaluator.rescale_to_next_inplace(ctemp);
-            for (int l = 0; l < log2(slot_count); l++) {
-                ctemp1 = ctemp;
-                evaluator.rotate_vector_inplace(ctemp1, pow(2, l), gal_keys);
-                evaluator.add_inplace(ctemp, ctemp1);
-            }
-            //For H, we need this added to H[i]. H[i] is already at the correct level, just needs 
-            //a modified scale:
-            H[i].scale() = ctemp.scale();
-            evaluator.add_inplace(H[i], ctemp);
-            //need to add lambda to H[d]
-            if (i == nfeatures - 1) {
-                evaluator.mod_switch_to(lambdap, H[i].parms_id(), ptemp1);
-                ptemp1.scale() = H[i].scale();
-                evaluator.add_plain_inplace(H[i], ptemp1);
-            }
-            //For M, switch down I[i]&multiply, eliminating all but the ith entry
-            evaluator.mod_switch_to_next(Iplain[i], ptemp);
-            evaluator.multiply_plain_inplace(ctemp, ptemp);
-            evaluator.rescale_to_next_inplace(ctemp);
-            //add to allsumtemp, generating a ciphertext Mi0,0,...,0,Mii,0,...,0
-            allsumtemp.scale() = ctemp.scale();
-            evaluator.add_inplace(allsumtemp, ctemp);
-            M[i] = allsumtemp;
-            //now we form Mik for k < i. This means we don't need to calculate Mik and Mki separately/twice
+            tp.push([i, &dataenc, slot_count, nfeatures, &lambdap, &gal_keys, &relin_keys, &evaluator, &Iplain, &xs, &H, &M, &ptemps, &H_mutex, &M_mutex, &X_mutex]() {
+                Ciphertext Xtemp = dataenc[1. * i - 1];
+                //first we allsum Xi, to find Mi0 = M0i
+                Ciphertext allsumtemp = Xtemp;
+                Ciphertext ctemp;
+
+                for (int k = 0; k < log2(slot_count); k++) {
+                    ctemp = allsumtemp;
+                    evaluator.rotate_vector_inplace(ctemp, pow(2, k), gal_keys);
+                    evaluator.add_inplace(allsumtemp, ctemp);
+                }
+
+                //for H, we need this added to H[0] & forming the basis for H[i], both one level down:
+                evaluator.mod_switch_to_next(allsumtemp, ctemp);
+                {       
+                    std::lock_guard<std::mutex> lock(H_mutex);
+                    evaluator.add_inplace(H[0], ctemp);
+                }
+                    
+                auto H_local = ctemp; // Delegate writing to H until later
+                evaluator.multiply_plain(allsumtemp, Iplain[i], ctemp);
+                evaluator.rescale_to_next_inplace(ctemp);
+                {
+                    std::lock_guard<std::mutex> lock(M_mutex);
+                    evaluator.add_inplace(M[0], ctemp);
+                }
+
+                //now we eliminate all but the 0th entry
+                evaluator.multiply_plain_inplace(allsumtemp, Iplain[0]);
+                evaluator.rescale_to_next_inplace(allsumtemp);
+                evaluator.mod_switch_to_next_inplace(allsumtemp);
             
+                //form Mii:
+                evaluator.square(Xtemp, ctemp);
+                evaluator.relinearize_inplace(ctemp, relin_keys);
+                evaluator.rescale_to_next_inplace(ctemp);
+                for (int l = 0; l < log2(slot_count); l++) {
+                    Ciphertext ctemp1 = ctemp;
+                    evaluator.rotate_vector_inplace(ctemp1, pow(2, l), gal_keys);
+                    evaluator.add_inplace(ctemp, ctemp1);
+                }
+
+                //For H, we need this added to H[i]. H[i] is already at the correct level, just needs 
+                //a modified scale:
+                H_local.scale() = ctemp.scale();
+                evaluator.add_inplace(H_local, ctemp);
+                //need to add lambda to H[d]
+                if (i == nfeatures - 1) {
+                    Plaintext ptemp1;
+                    evaluator.mod_switch_to(lambdap, H_local.parms_id(), ptemp1);
+                    ptemp1.scale() = H_local.scale();
+                    evaluator.add_plain_inplace(H_local, ptemp1);
+                }
+
+                Plaintext ptemp;
+                //For M, switch down I[i]&multiply, eliminating all but the ith entry
+                evaluator.mod_switch_to_next(Iplain[i], ptemp);
+                evaluator.multiply_plain_inplace(ctemp, ptemp);
+                evaluator.rescale_to_next_inplace(ctemp);
+                //add to allsumtemp, generating a ciphertext Mi0,0,...,0,Mii,0,...,0
+                allsumtemp.scale() = ctemp.scale();
+                evaluator.add_inplace(allsumtemp, ctemp);
+                // Now lock the M matrix
+                std::lock_guard<std::mutex> M_lock(M_mutex);
+                std::lock_guard<std::mutex> H_lock(H_mutex);
+                std::lock_guard<std::mutex> X_lock(X_mutex);
+                M[i] = allsumtemp;
+                H[i] = H_local;
+                xs[i] = Xtemp;
+                ptemps[i] = ptemp;
+            });
+        }
+
+        std::cout << "HI" << std::endl;
+        tp.wait_work();
+        std::cout << "Hi2" << std::endl;
+        //now we form Mik for k < i. This means we don't need to calculate Mik and Mki separately/twice
+        for(int i = 1; i < nfeatures;i++) { 
+            auto Xtemp = xs[i];
+            auto ptemp = ptemps[i];
+
             for (int k = 1; k < i; k++) {
                 //first multiply Xi by Xk
                 evaluator.multiply(dataenc[1. * k - 1], Xtemp, allsumtemp);
@@ -314,17 +345,9 @@ int PP_Fixed_Hessian_RR(double lambda) {
                     evaluator.add_plain_inplace(H[k], ptemp1);
                 }
             }
-            //cout << "after feature " << i << ": \n";
-            //for (int i = 0; i < H.size(); i++) {
-            //    decryptor.decrypt(H[i], ptemp);
-            //    encoder.decode(ptemp, input);
-            //    cout << "(";
-            //    for (int k = 0; k < 15; k++)cout << input[k] << ",";
-            //    cout << "\n";
-            //}
-            //cout << "\n";
         }
 
+        std::cout << "Hi3" << std::endl;
         for (int i = 0; i < nfeatures; i++) {
             evaluator.negate_inplace(M[i]);
         }
@@ -354,8 +377,6 @@ int PP_Fixed_Hessian_RR(double lambda) {
         evaluator.mod_switch_to_next_inplace(P_T1);
         evaluator.mod_switch_to_next_inplace(P_T1);
         
-        std::mutex H_mutex;
-        std::mutex M_mutex;
         std::cout << "H + M" << std::endl;
         for (int i = 0; i < nfeatures; i++) {
             tp.push([i, &H, &H_mutex, &evaluator, &P_T1, &P_T2, &relin_keys](){
@@ -410,7 +431,7 @@ int PP_Fixed_Hessian_RR(double lambda) {
         
         //and we need to form HVec = (1/H00,1/H11,...,1/Hdd)
         HVec = H[0];
-        for (int i = 1; i < H.size(); i++) {
+        for (unsigned int i = 1; i < H.size(); i++) {
             evaluator.mod_switch_to(Iplain[i], H[i].parms_id(), ptemp);
             evaluator.multiply_plain_inplace(H[i], ptemp);
             evaluator.rescale_to_next_inplace(H[i]);
