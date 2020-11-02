@@ -288,37 +288,63 @@ int PP_Nesterov_Gradient_Descent_RR(double alpha, double lambda) {
         }
 
         tp.wait_work();
-        std::cout << "Parallel M finished, time for serial" << std::endl;
-
+        
         for(int i = 1; i < nfeatures;i++) {
             auto Xtemp = Xtemps[i-1];
             auto ptemp = Ptemps[i-1];
+
+            std::vector<Ciphertext> M_i_list(i-1);
+            std::mutex M_i_mutex;
             //now we form Mik for k < i. This means we don't need to calculate Mik and Mki separately/twice
             for (int k = 1; k < i; k++) {
-                //first multiply Xi by Xk
-                evaluator.multiply(dataenc[1. * k - 1], Xtemp, allsumtemp);
-                evaluator.relinearize_inplace(allsumtemp, relin_keys);
-                evaluator.rescale_to_next_inplace(allsumtemp);
-                //now we need to allsum allsumtemp.
-                for (int l = 0; l < log2(slot_count); l++) {
-                    ctemp = allsumtemp;
-                    evaluator.rotate_vector_inplace(ctemp, pow(2, l), gal_keys);
-                    evaluator.add_inplace(allsumtemp, ctemp);
-                }
-                //we need two copies of allsumtemp -- one for M[i] in the kth slot and one for
-                //M[k] in the ith slot...
-                //switch down a copy of C[k]                
-                evaluator.mod_switch_to_next(Cplain[k], ptemp1);
-                //M[k] in the ith slot                
-                evaluator.multiply_plain(allsumtemp, ptemp, ctemp);
-                evaluator.rescale_to_next_inplace(ctemp);
-                evaluator.add_inplace(M[k], ctemp);
-                //M[i] in the kth slot                
-                evaluator.multiply_plain_inplace(allsumtemp, ptemp1);
-                evaluator.rescale_to_next_inplace(allsumtemp);
-                evaluator.add_inplace(M[i], allsumtemp);
-            }
+               tp.push([&evaluator, &dataenc, &Xtemp, &relin_keys, &gal_keys, i, k, slot_count, &M ,&ptemp, &Cplain, &M_i_list, &M_mutex, &M_i_mutex](){
+                
+                    //first multiply Xi by Xk
+                    Ciphertext allsumtemp;
+                    Ciphertext ctemp;
+
+                    evaluator.multiply(dataenc[1. * k - 1], Xtemp, allsumtemp);
+                    evaluator.relinearize_inplace(allsumtemp, relin_keys);
+                    evaluator.rescale_to_next_inplace(allsumtemp);
+                    
+                    //now we need to allsum allsumtemp.
+                    for (int l = 0; l < log2(slot_count); l++) {
+                        ctemp = allsumtemp;
+                        evaluator.rotate_vector_inplace(ctemp, pow(2, l), gal_keys);
+                        evaluator.add_inplace(allsumtemp, ctemp);
+                    }
+
+                    //we need two copies of allsumtemp -- one for M[i] in the kth slot and one for
+                    //M[k] in the ith slot...
+                    //switch down a copy of C[k]             
+                    Plaintext ptemp1;
+
+                    evaluator.mod_switch_to_next(Cplain[k], ptemp1);
+                    //M[k] in the ith slot                
+                    evaluator.multiply_plain(allsumtemp, ptemp, ctemp);
+                    evaluator.rescale_to_next_inplace(ctemp);
+                
+                    {
+                        std::lock_guard<std::mutex> M_lock(M_mutex);
+                        evaluator.add_inplace(M[k], ctemp);
+                    }
+                
+                    //M[i] in the kth slot                
+                    evaluator.multiply_plain_inplace(allsumtemp, ptemp1);
+                    evaluator.rescale_to_next_inplace(allsumtemp);
+                    {
+                        std::lock_guard<std::mutex> M_i_lock(M_i_mutex);
+                        M_i_list[k-1] = allsumtemp;
+                    }
+            });
         }
+        
+        tp.wait_work();
+
+        for(const auto& allsumtemp : M_i_list) {
+            evaluator.add_inplace(M[i], allsumtemp);
+        }
+    }
 
 
         for (int i = 0; i < nfeatures; i++) {
