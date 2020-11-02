@@ -90,7 +90,9 @@ int ImportDataRR(dMat& Matrix, dVec& results, string filename,char split_char,bo
 		ncolumns = record.size();
 		//push back (1,x1,x2,..,xd)
 		entry1.push_back(1.0);
-		for (int i = 1-y; i < ncolumns - y; i++) entry1.push_back(stod(record[i]));
+		for (int i = 1-y; i < ncolumns - y; i++) {
+            entry1.push_back(stod(record[i]));
+        }
 
 		//add to matrix, and put y in Result
 		Matrix.push_back(entry1);
@@ -99,6 +101,7 @@ int ImportDataRR(dMat& Matrix, dVec& results, string filename,char split_char,bo
 		record.clear();
 		entry1.clear();
 	}
+
 	while (getline(inFile, line)) {
 		istringstream split(line);
 		for (string entry; getline(split, entry, split_char); record.push_back(entry));
@@ -109,7 +112,6 @@ int ImportDataRR(dMat& Matrix, dVec& results, string filename,char split_char,bo
 		//define a new entry		
 		entry1.push_back(1.0);
 		for (int i = 1-y; i < ncolumns - y; i++) entry1.push_back(stod(record[i]));
-		
 		//add entry to matrix, and result to vector
 		Matrix.push_back(entry1);
 		results.push_back(stod(record[y*(ncolumns - 1)]));
@@ -117,6 +119,7 @@ int ImportDataRR(dMat& Matrix, dVec& results, string filename,char split_char,bo
 		record.clear();
 		entry1.clear();
 	}
+    return 0;
 }
 
 double inner_prod(dVec v, dVec u, int start) {
