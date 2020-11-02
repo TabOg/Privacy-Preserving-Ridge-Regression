@@ -139,8 +139,9 @@ int main() {
             cout << "lambda = ";
             cin >> lambda;
         }
-        break;
+        std::cout << "Firing" << std::endl;
         PP_Gradient_Descent_RR(stod(alpha), stod(lambda));
+        break;
     case 5:
         cout << "alpha = ";
         cin >> alpha;
@@ -156,6 +157,7 @@ int main() {
             cout << "lambda = ";
             cin >> lambda;
         }
+        std::cout << "Firing" << std::endl;
         PP_Nesterov_Gradient_Descent_RR(stod(alpha), stod(lambda));
         break;
 
