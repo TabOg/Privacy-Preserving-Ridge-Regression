@@ -7,14 +7,14 @@
 int PP_Fixed_Hessian_RR(double lambda) {    
 
     // Set this to nr_threads -1 : it will run even on this thread
-    thread_pool::thread_pool tp(10);
+    thread_pool::thread_pool tp(9);
 
     EncryptionParameters parms(scheme_type::CKKS);
     size_t poly_modulus_degree = 32768;
     vector<int> mod;
-    mod.push_back(50);
-    for (int i = 0; i < 18; i++)mod.push_back(40);
-    mod.push_back(50);
+    mod.push_back(40);
+    for (int i = 0; i < 25; i++)mod.push_back(30);
+    mod.push_back(40);
     parms.set_poly_modulus_degree(poly_modulus_degree);
 
     parms.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree, mod));
@@ -55,7 +55,7 @@ int PP_Fixed_Hessian_RR(double lambda) {
 
 
     //set 40 bits of precision
-    double scale = pow(2.0, 40);
+    double scale = pow(2.0, 30);
     Plaintext ptemp, ptemp1;
     //encode the rows of the matrix I
     pVec Iplain;
@@ -505,7 +505,7 @@ int PP_Fixed_Hessian_RR(double lambda) {
         allsums.resize(nfeatures);
 
         //iterations:
-        for (int k = 2; k < 7; k++) {
+        for (int k = 2; k < 10; k++) {
             cout << "starting iteration " << k << "\n";
             Ytemp = Y;
     
