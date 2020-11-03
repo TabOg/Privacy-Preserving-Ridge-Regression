@@ -6,13 +6,13 @@
 
 int PP_Nesterov_Gradient_Descent_RR(double alpha, double lambda) {
     
-    thread_pool::thread_pool tp(10);
+    thread_pool::thread_pool tp(9);
     EncryptionParameters parms(scheme_type::CKKS);
     size_t poly_modulus_degree = 32768;
     vector<int> mod;
-    mod.push_back(50);
-    for (int i = 0; i < 17; i++)mod.push_back(40);
-    mod.push_back(50);
+    mod.push_back(40);
+    for (int i = 0; i < 26; i++)mod.push_back(30);
+    mod.push_back(40);
     parms.set_poly_modulus_degree(poly_modulus_degree);
 
     parms.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree, mod));
@@ -58,7 +58,7 @@ int PP_Nesterov_Gradient_Descent_RR(double alpha, double lambda) {
         I.push_back(ctemp);
     }
     //set 40 bits of precision
-    double scale = pow(2.0, 40);
+    double scale = pow(2.0, 30);
 
     //encode the rows of the matrix C
     pVec Cplain;
@@ -357,7 +357,7 @@ int PP_Nesterov_Gradient_Descent_RR(double alpha, double lambda) {
         allsums.clear();
         allsums.resize(nfeatures);
         //iterations:
-        for (int k = 2; k < 7; k++) {
+        for (int k = 2; k < 10; k++) {
             cout << "starting iteration " << k << "\n";
             T = (1. + sqrt(1. + 4 * t * t)) / 2.;
             gamma = (1. - t) / T;
