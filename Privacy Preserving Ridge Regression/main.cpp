@@ -29,7 +29,9 @@ int main() {
     cout << "+----------------------------+----------------------------+" << endl;
     int selection = 0;
     bool invalid = true;
-    string alpha, lambda,iternum;
+    string alpha, lambda,iternum, ringdim;
+    bool bit_size;
+
     do
     {
         cout << endl << "> Run example (1 ~ 6) or exit (0): ";
@@ -139,8 +141,18 @@ int main() {
             cout << "lambda = ";
             cin >> lambda;
         }
-        std::cout << "Firing" << std::endl;
-        PP_Gradient_Descent_RR(stod(alpha), stod(lambda));
+        
+        cout << "Choose bit precision: 30(0) or 40(1):";
+        cin  >> ringdim; 
+        
+        while (!(stoi(ringdim) == 0 || stoi(ringdim) == 1)) {
+            cout << "Please enter either 0 or 1!\n";
+            cout << "Select P = 30 (0) or P = 40 (1):";
+            cin >> ringdim;
+        }
+        
+        bit_size = stoi(ringdim);
+        PP_Gradient_Descent_RR(stod(alpha), stod(lambda), bit_size);
         break;
     case 5:
         cout << "alpha = ";
@@ -157,8 +169,18 @@ int main() {
             cout << "lambda = ";
             cin >> lambda;
         }
-        std::cout << "Firing" << std::endl;
-        PP_Nesterov_Gradient_Descent_RR(stod(alpha), stod(lambda));
+        
+        cout << "Choose bit precision: 30(0) or 40(1):";
+        cin  >> ringdim; 
+        
+        while (!(stoi(ringdim) == 0 || stoi(ringdim) == 1)) {
+            cout << "Please enter either 0 or 1!\n";
+            cout << "Select P = 30 (0) or P = 40 (1):";
+            cin >> ringdim;
+        }
+        
+        bit_size = stoi(ringdim);
+        PP_Nesterov_Gradient_Descent_RR(stod(alpha), stod(lambda), bit_size);
         break;
 
     case 6:
@@ -169,9 +191,19 @@ int main() {
             cout << "lambda = ";
             cin >> lambda;
         }
-        PP_Fixed_Hessian_RR(stod(lambda));
+        
+        cout << "Choose bit precision: 30(0) or 40(1):";
+        cin  >> ringdim; 
+        
+        while (!(stoi(ringdim) == 0 || stoi(ringdim) == 1)) {
+            cout << "Please enter either 0 or 1!\n";
+            cout << "Select P = 30 (0) or P = 40 (1):";
+            cin >> ringdim;
+        }
+        
+        bit_size = stoi(ringdim);
+        PP_Fixed_Hessian_RR(stod(lambda), bit_size);
         break;
-
     case 0:
         return 0;
     }

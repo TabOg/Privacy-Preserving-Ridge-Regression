@@ -4,16 +4,37 @@
 #include "threadpool.hpp"
 #include <iostream>
 
-int PP_Gradient_Descent_RR(double alpha,double lambda) {
+int PP_Gradient_Descent_RR(double alpha,double lambda, bool bitsize) {
     
-    thread_pool::thread_pool tp(10);
+    thread_pool::thread_pool tp(9);
+
+    unsigned int precision;
+    unsigned int modulus_size;
+    unsigned int default_value;
+    unsigned int sentenial_value;
+    unsigned int learning_iters;
+
+    if(bitsize) {
+        // This choice corresponds to a 40-bit precision choice
+        precision        = 40;
+        modulus_size     = 20;
+        default_value    = 40;
+        sentenial_value  = 50;
+        learning_iters   = 10;
+    } else {
+        precision = 30;
+        modulus_size = 28;
+        default_value = 30;
+        sentenial_value = 40;
+        learning_iters = 14;
+    }
 
     EncryptionParameters parms(scheme_type::CKKS);
     size_t poly_modulus_degree = 32768;
-    vector<int> mod;
-    mod.push_back(50);
-    for (int i = 0; i < 18; i++)mod.push_back(40);
-    mod.push_back(50);
+    vector<int> mod(modulus_size, default_value);
+    mod[0] = sentenial_value;
+    mod[modulus_size-1] = sentenial_value;
+
     parms.set_poly_modulus_degree(poly_modulus_degree);
 
     parms.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree, mod));
@@ -58,8 +79,8 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         ctemp[i] += 1;
         I.push_back(ctemp);
     }
-    //set 40 bits of precision
-    double scale = pow(2.0, 40);
+    //set the precision
+    double scale = pow(2.0, precision);
 
     //encode the rows of the matrix C
     pVec Cplain;
@@ -342,7 +363,7 @@ int PP_Gradient_Descent_RR(double alpha,double lambda) {
         dataenc.clear();
 
         //iterations:
-        for (int k = 2; k < 10; k++) {
+        for (int k = 2; k < learning_iters; k++) {
             cout << "starting iteration " << k << "\n";
             Ytemp = Y;
             //go feature by feature
