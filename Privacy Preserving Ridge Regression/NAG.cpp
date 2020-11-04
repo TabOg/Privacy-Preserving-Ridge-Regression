@@ -80,7 +80,7 @@ int PP_Nesterov_Gradient_Descent_RR(double alpha, double lambda, bool bitsize) {
         I.push_back(ctemp);
     }
     //set 40 bits of precision
-    double scale = pow(2.0, 40);
+    double scale = pow(2.0, 30);
 
     //encode the rows of the matrix C
     pVec Cplain;
