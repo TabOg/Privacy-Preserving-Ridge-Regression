@@ -9,11 +9,11 @@ int PP_Nesterov_Gradient_Descent_RR(double alpha, double lambda, bool bitsize) {
     // Set this to nr_threads -1 : it will run even on this thread
     thread_pool::thread_pool tp(9);
 
-    unsigned int precision;
-    unsigned int modulus_size;
-    unsigned int default_value;
-    unsigned int sentenial_value;
-    unsigned int learning_iters;
+    unsigned int precision{};
+    unsigned int modulus_size{};
+    unsigned int default_value{};
+    unsigned int sentenial_value{};
+    unsigned int learning_iters{};
 
     if(bitsize) {
         // This choice corresponds to a 40-bit precision choice
@@ -79,8 +79,8 @@ int PP_Nesterov_Gradient_Descent_RR(double alpha, double lambda, bool bitsize) {
         ctemp[i] += 1;
         I.push_back(ctemp);
     }
-    //set 40 bits of precision
-    double scale = pow(2.0, 30);
+    //set the precision
+    double scale = pow(2.0, precision);
 
     //encode the rows of the matrix C
     pVec Cplain;
